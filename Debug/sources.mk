@@ -26,6 +26,7 @@ Core/Src \
 Core/Startup \
 Drivers/BSP/Components/ft5336 \
 Drivers/BSP/Components/mt48lc4m32b2 \
+Drivers/BSP/Components/wm8994 \
 Drivers/BSP/STM32H750B-DK \
 Drivers/STM32H7xx_HAL_Driver/Src \
 Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2 \

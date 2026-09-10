@@ -69,13 +69,13 @@
 osMessageQueueId_t buttonQueueHandle;
 
 //opravilo senzorja
-osThreadId_t buttonTaskHandle;
+/*osThreadId_t buttonTaskHandle;
 const osThreadAttr_t buttonTask_attributes = {
 		.name = "ButtonTask",
 		.stack_size = 512 * 4,
 		.priority = (osPriority_t) osPriorityNormal,
 
-};
+};*/
 
 //opravilo za zaslon
 osThreadId_t lcdTaskHandle;
@@ -85,7 +85,7 @@ const osThreadAttr_t lcdTask_attributes = {
 		.priority = (osPriority_t) osPriorityBelowNormal,
 };
 
-void StartButtonTask(void *argument);
+//void StartButtonTask(void *argument);
 void StartLCDTask(void *argument);
 
 /* USER CODE END PV */
@@ -98,6 +98,7 @@ void MX_FREERTOS_Init(void);
 /* USER CODE BEGIN PFP */
 void vApplicationStackOverflowHook(TaskHandle_t xTask, char *pcTaskName);
 uint8_t DrawSemafor(void);
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin);
 void Ready(void);
 /* USER CODE END PFP */
 
@@ -141,6 +142,8 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  HAL_NVIC_SetPriority(EXTI15_10_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
   MX_ADC1_Init();
   MX_ADC2_Init();
   MX_ADC3_Init();
@@ -199,8 +202,8 @@ int main(void)
   buttonQueueHandle = osMessageQueueNew(4, sizeof(uint32_t), NULL);
   if (buttonQueueHandle == NULL) { Error_Handler(); }
 
-  buttonTaskHandle = osThreadNew(StartButtonTask, NULL, &buttonTask_attributes);
-  if (buttonTaskHandle == NULL) { Error_Handler(); }
+  /*buttonTaskHandle = osThreadNew(StartButtonTask, NULL, &buttonTask_attributes);
+  if (buttonTaskHandle == NULL) { Error_Handler(); }*/
 
   lcdTaskHandle = osThreadNew(StartLCDTask, NULL, &lcdTask_attributes);
   if (lcdTaskHandle == NULL) { Error_Handler(); }
@@ -315,7 +318,7 @@ void PeriphCommonClock_Config(void)
 
 /* USER CODE BEGIN 4 */
 //opravilo za modri gumb
-void StartButtonTask(void *argument)
+/*void StartButtonTask(void *argument)
 {
 	//inicializacija začetnega stanja - onemogočimo zmago z držanjem gumba
 	GPIO_PinState previousState = GPIO_PIN_RESET;
@@ -334,7 +337,7 @@ void StartButtonTask(void *argument)
 		previousState = currentState;
 		osDelay(5);
 	}
-}
+}*/
 
 void StartLCDTask(void *argument)
 {
@@ -415,6 +418,26 @@ void StartLCDTask(void *argument)
 	UTIL_LCD_DisplayStringAt(0, 100, (uint8_t *)bufferUn, LEFT_MODE);
 	UTIL_LCD_DisplayStringAt(0, 150, (uint8_t *)"To play again press black button!", LEFT_MODE);
 }
+
+/* USER CODE BEGIN 4 */
+
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
+{
+    if(GPIO_Pin == B1_Pin)
+    {
+        static uint32_t lastPressTick = 0;
+        uint32_t now = HAL_GetTick();
+
+        // strojni debounce - prekratek razmik med pritiski ignoriramo
+        if(now - lastPressTick > 50)
+        {
+            lastPressTick = now;
+            osMessageQueuePut(buttonQueueHandle, &now, 0U, 0U);
+        }
+    }
+}
+
+/* USER CODE END 4 */
 
 void Ready(void)
 {
