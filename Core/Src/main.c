@@ -98,6 +98,7 @@ void MX_FREERTOS_Init(void);
 /* USER CODE BEGIN PFP */
 void vApplicationStackOverflowHook(TaskHandle_t xTask, char *pcTaskName);
 uint8_t DrawSemafor(void);
+void Ready(void);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -340,12 +341,30 @@ void StartLCDTask(void *argument)
 	uint32_t press;
 	osStatus_t status;
 
-	for(;;)
-	{
-		osMessageQueueReset(buttonQueueHandle);
-		uint8_t noPress = DrawSemafor();
-		if(noPress == 1)
-		{
+	#define NUM_ROUNDS 5
+	uint8_t successfulRounds = 0;
+	uint8_t unsuccessfulRounds = 0;
+	uint32_t sum = 0;
+
+	while(successfulRounds < NUM_ROUNDS){
+			osMessageQueueReset(buttonQueueHandle);
+			Ready();
+			osMessageQueueReset(buttonQueueHandle);
+			uint8_t noPress = DrawSemafor();
+			if(noPress == 0)
+			{
+				HAL_GPIO_WritePin(LD1_GPIO_Port, LD1_Pin, GPIO_PIN_RESET);
+				UTIL_LCD_Clear(UTIL_LCD_COLOR_WHITE);
+				UTIL_LCD_SetBackColor(UTIL_LCD_COLOR_WHITE);
+				UTIL_LCD_SetTextColor(UTIL_LCD_COLOR_RED);
+				UTIL_LCD_SetFont(&Font24);
+				UTIL_LCD_DisplayStringAt(0, 120, (uint8_t *)"WAIT FOR ALL LIGHTS!", CENTER_MODE);
+				osDelay(3000);
+				HAL_GPIO_WritePin(LD1_GPIO_Port, LD1_Pin, GPIO_PIN_SET);
+				unsuccessfulRounds++;
+				continue;
+			}
+
 			uint32_t randomValue;
 			HAL_RNG_GenerateRandomNumber(&hrng, &randomValue);
 			uint32_t waitTime = 500 + (randomValue % 4000);
@@ -353,7 +372,7 @@ void StartLCDTask(void *argument)
 			status = osMessageQueueGet(buttonQueueHandle, &press, NULL, waitTime);
 			if(status == osErrorTimeout)
 			{
-				//ugasnemo krogce
+			//ugasnemo krogce
 				uint32_t goTick = HAL_GetTick();
 				UTIL_LCD_Clear(UTIL_LCD_COLOR_WHITE);
 				status = osMessageQueueGet(buttonQueueHandle, &press, NULL, osWaitForever);
@@ -366,6 +385,8 @@ void StartLCDTask(void *argument)
 				sprintf(buffer, "Reaction time: %lu ms", reactionTime);
 				UTIL_LCD_DisplayStringAt(0, 120, (uint8_t *)buffer, CENTER_MODE);
 				osDelay(3000);
+				successfulRounds++;
+				sum += reactionTime;
 			} else {
 				//prižgemo rdečo luč
 				HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_RESET);
@@ -376,23 +397,36 @@ void StartLCDTask(void *argument)
 				UTIL_LCD_DisplayStringAt(0, 120, (uint8_t *)"TOO FAST!", CENTER_MODE);
 				osDelay(3000);
 				HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_SET);
+				unsuccessfulRounds++;
 			}
-
-		} else {
-			HAL_GPIO_WritePin(LD1_GPIO_Port, LD1_Pin, GPIO_PIN_RESET);
-			UTIL_LCD_Clear(UTIL_LCD_COLOR_WHITE);
-			UTIL_LCD_SetBackColor(UTIL_LCD_COLOR_WHITE);
-			UTIL_LCD_SetTextColor(UTIL_LCD_COLOR_RED);
-			UTIL_LCD_SetFont(&Font24);
-			UTIL_LCD_DisplayStringAt(0, 120, (uint8_t *)"WAIT FOR ALL LIGHTS!", CENTER_MODE);
-			osDelay(3000);
-			HAL_GPIO_WritePin(LD1_GPIO_Port, LD1_Pin, GPIO_PIN_SET);
-		}
-
-
-
 	}
+	uint32_t average = sum / NUM_ROUNDS;
+	UTIL_LCD_Clear(UTIL_LCD_COLOR_WHITE);
+	//DrawCheckFlag();
+	UTIL_LCD_SetBackColor(UTIL_LCD_COLOR_WHITE);
+	UTIL_LCD_SetTextColor(UTIL_LCD_COLOR_GREEN);
+	UTIL_LCD_SetFont(&Font12);
+	char bufferSuc[100];
+	sprintf(bufferSuc, "Congratulations, your average reaction time is %lu ms!", average);
+	UTIL_LCD_DisplayStringAt(0, 50, (uint8_t *)bufferSuc, LEFT_MODE);
+	char bufferUn[100];
+	UTIL_LCD_SetFont(&Font16);
+	sprintf(bufferUn, "You were unsuccessful %lu times", unsuccessfulRounds);
+	UTIL_LCD_DisplayStringAt(0, 100, (uint8_t *)bufferUn, LEFT_MODE);
+	UTIL_LCD_DisplayStringAt(0, 150, (uint8_t *)"To play again press black button!", LEFT_MODE);
+}
 
+void Ready(void)
+{
+	uint32_t press;
+	UTIL_LCD_Clear(UTIL_LCD_COLOR_WHITE);
+	UTIL_LCD_SetBackColor(UTIL_LCD_COLOR_WHITE);
+	UTIL_LCD_SetTextColor(UTIL_LCD_COLOR_BLUE);
+	UTIL_LCD_SetFont(&Font24);
+	UTIL_LCD_DisplayStringAt(0, 120, (uint8_t *)"Press blue button to start", CENTER_MODE);
+
+	osStatus_t status = osMessageQueueGet(buttonQueueHandle, &press, NULL, osWaitForever);
+	if(status == osOK) return;
 }
 
 uint8_t DrawSemafor(void)
